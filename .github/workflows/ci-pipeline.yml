@@ -168,15 +168,7 @@ jobs:
           sbom: true
           provenance: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:latest
-      - name: Get image digest
-        id: get-digest
-        run: echo "IMAGE_DIGEST=$(docker inspect --format='{{index .RepoDigests 0}}' ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:latest)" >> $GITHUB_ENV
-        
-      - name: Sign the image with GitHub OIDC Token
-        env:
-          IMAGE: ${{ env.IMAGE_DIGEST }}  # Use the digest obtained from the previous step
-        run: |
-          cosign sign --yes ${IMAGE}
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.4.0
 
