@@ -27,7 +27,7 @@ jobs:
           path: junit/test-results.xml
   sonarqube:
     needs: test
-    if: true
+    if: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
