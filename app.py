@@ -11,6 +11,11 @@ vuln = int(os.getenv('vulnerable', 1))
 # token alive for how many seconds?
 alive = int(os.getenv('tokentimetolive', 60))
 
+app = vuln_app
+@app.route('/openapi_specs/openapi3.yml')
+def serve_openapi_spec():
+    return send_from_directory('openapi_specs', 'openapi3.yml')
+
 
 # start the app with port 5000 and debug on!
 if __name__ == '__main__':
