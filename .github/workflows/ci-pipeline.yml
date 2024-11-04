@@ -52,7 +52,7 @@ jobs:
 
   # DAST job
   dast:
-    needs: [test, sonarqube]
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -132,7 +132,7 @@ jobs:
             path: ${{ steps.image-scan.outputs.json }}
       
   build:
-    needs: test
+    needs: sonarqube
     permissions:
       id-token: write    
     runs-on: ubuntu-latest
