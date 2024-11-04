@@ -25,94 +25,93 @@ jobs:
         with:
           name: test-results
           path: junit/test-results.xml
+
+  # SAST job (SonarQube), can be disabled during development to save time
   sonarqube:
     needs: test
-    if: true
     runs-on: ubuntu-latest
+    if: false
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
-          
-      # Download and upload SonarQube report as an artifact
+
       - name: Download SonarQube report
         run: |
           sleep 30
           URL="${{ secrets.SONAR_URL }}/api/qualitygates/project_status?projectKey=devsecops-app&branch=main"
-          echo "Report URL $URL"
           curl -u ${{ secrets.SONAR_TOKEN }}: "$URL" -o sonarqube-report.json
       - name: Upload SonarQube report
-        id: artifact-sonarqube
         uses: actions/upload-artifact@v4
         with:
           name: sonarqube-report
           path: sonarqube-report.json
+
+  # DAST job
   dast:
-     needs: test
-     runs-on: ubuntu-latest
-     if: true
-     steps:
-       - uses: actions/checkout@v4
-       - name: Set up QEMU
-         uses: docker/setup-qemu-action@v3
-       - name: Set up Docker Buildx
-         uses: docker/setup-buildx-action@v3
-       - name: Login to Docker Hub
-         uses: docker/login-action@v3
-         with:
-           username: ${{ secrets.DOCKERHUB_USERNAME }}
-           password: ${{ secrets.DOCKERHUB_TOKEN }}
-       - name: Build and push DAST image
-         uses: docker/build-push-action@v5
-         with:
-           push: true
-           tags: ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:dast-test
-       #- name: ZAP Scan
-        # uses: zaproxy/action-api-scan@v0.6.0
-         #with:
-          # token: ${{ secrets.GITHUB_TOKEN }}
-           #docker_name: 'ghcr.io/zaproxy/zaproxy:stable'
-           #format: openapi
-           #target: /zap/wrk/openapi_specs/openapi3.yml
-           #rules_file_name: .zap/rules.tsv
-           #cmd_options: '-a -c /zap/wrk/.zap/rules.tsv -d'
-           #fail_action: false
-           #allow_issue_writing: false
-         
-       #- name: Upload ZAP report
-       #  id: artifact-zap
-       #  uses: actions/upload-artifact@v4
-       #  with:
-       #    name: zap-report
-       #    path: report_json.json
-           
-       # Deploy to Azure Container Apps
-       - uses: azure/login@v1
-         with:
-           creds: ${{ secrets.AZURE_CREDENTIALS }}
-       - name: Deploy DAST Container App
-         uses: azure/container-apps-deploy-action@v1
-         with:
-           imageToDeploy: ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:dast-test
-           containerAppName: devops-test-app
-           containerAppEnvironment: devops-app-env
-           resourceGroup: devsecops-lab
-           location: australiaeast
-           targetPort: 5000
+    needs: [test, sonarqube]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push DAST image
+        uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:dast-test
+
+      # Deploy to Azure
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Deploy DAST Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          imageToDeploy: ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:dast-test
+          containerAppName: devops-test-app
+          containerAppEnvironment: devops-app-env
+          resourceGroup: devsecops-lab
+          location: australiaeast
+          targetPort: 5000
   
-       # Retrieve the deployed app URL
-       - name: Get deployed DAST app url
-         run: |
-           export FQDN=$(az containerapp show -n devops-test-app -g devsecops-lab --query properties.configuration.ingress.fqdn -o tsv)
-           echo "TEST_APP_URL=https://$FQDN" >> $GITHUB_ENV
-           echo "TEST_APP_URL=https://$FQDN"
-           curl https://$FQDN/ui
-           sed -i "s,http://localhost:5000,https://$FQDN,g" $GITHUB_WORKSPACE/openapi_specs/openapi3.yml
+      # Retrieve the deployed app URL
+      - name: Get deployed DAST app URL
+        run: |
+          export FQDN=$(az containerapp show -n devops-test-app -g devsecops-lab --query properties.configuration.ingress.fqdn -o tsv)
+          echo "TEST_APP_URL=https://$FQDN" >> $GITHUB_ENV
+          sed -i "s,http://localhost:5000,https://$FQDN,g" $GITHUB_WORKSPACE/openapi_specs/openapi3.yml
+
+      # OWASP ZAP DAST Scan
+      - name: ZAP Scan
+        uses: zaproxy/action-api-scan@v0.6.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          docker_name: 'ghcr.io/zaproxy/zaproxy:stable'
+          format: openapi
+          target: https://$FQDN/openapi_specs/openapi3.yml
+          rules_file_name: .zap/rules.tsv
+          cmd_options: '-a -c /zap/wrk/.zap/rules.tsv'
+          fail_action: false
+          allow_issue_writing: false
+
+      - name: Upload ZAP report
+        id: artifact-zap
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: report_json.json
+
   image-scan:
     needs: [test]
     if: true
@@ -133,7 +132,7 @@ jobs:
             path: ${{ steps.image-scan.outputs.json }}
       
   build:
-    needs: sonarqube
+    needs: test
     permissions:
       id-token: write    
     runs-on: ubuntu-latest
