@@ -142,7 +142,7 @@ jobs:
             path: ${{ steps.image-scan.outputs.json }}
       
   build:
-    needs: []
+    needs: [security_gate]
     if: true
     permissions:
       id-token: write    
