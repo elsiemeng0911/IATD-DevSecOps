@@ -29,26 +29,18 @@ jobs:
   # SAST job (SonarQube), can be disabled during development to save time
   sonarqube:
     needs: test
-    runs-on: ubuntu-latest
     if: true
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
-
-      - name: Download SonarQube report
-        run: |
-          sleep 30
-          URL="${{ secrets.SONAR_URL }}/api/qualitygates/project_status?projectKey=devsecops-app&branch=main"
-          curl -u ${{ secrets.SONAR_TOKEN }}: "$URL" -o sonarqube-report.json
-      - name: Upload SonarQube report
-        uses: actions/upload-artifact@v4
-        with:
-          name: sonarqube-report
-          path: sonarqube-report.json
+    - uses: actions/checkout@v3
+      with:
+        # Disabling shallow clones is recommended for improving the relevancy of reporting
+        fetch-depth: 0
+    - name: SonarQube Scan
+      uses: sonarsource/sonarqube-scan-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
 
   # DAST job
   dast:
