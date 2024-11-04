@@ -201,7 +201,7 @@ jobs:
           echo "Zap upload: $ZAP_RESPONSE"
 
   submit_reports:
-    needs: [test, sonarqube, dast, build]
+    needs: [sonarqube, dast, image-scan]
     if: true
     runs-on: ubuntu-latest
     steps:
