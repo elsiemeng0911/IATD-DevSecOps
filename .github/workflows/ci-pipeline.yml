@@ -30,15 +30,29 @@ jobs:
     if: true
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-      with:
-        # Disabling shallow clones is recommended for improving the relevancy of reporting
-        fetch-depth: 0
-    - name: SonarQube Scan
-      uses: sonarsource/sonarqube-scan-action@master
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
+          
+      # Download and upload SonarQube report as an artifact
+      - name: Download SonarQube report
+        run: |
+          sleep 30
+          URL="${{ secrets.SONAR_URL }}/api/qualitygates/project_status?projectKey=devsecops-app&branch=main"
+          echo "Report URL $URL"
+          curl -u ${{ secrets.SONAR_TOKEN }}: "$URL" -o sonarqube-report.json
+      - name: Upload SonarQube report
+        id: artifact-sonarqube
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonarqube-report
+          path: sonarqube-report.json
+
       
   build:
     needs: sonarqube
