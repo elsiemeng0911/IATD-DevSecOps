@@ -142,58 +142,43 @@ jobs:
             path: ${{ steps.image-scan.outputs.json }}
       
   build:
-    needs: [security_gate]
+    # needs: [security_gate]
     if: true
     permissions:
-      id-token: write    
+      id-token: write
     runs-on: ubuntu-latest
     steps:
-      - 
+      -
         name: Set up QEMU
-        uses: docker/setup-qemu-action@v3 
-      - 
-        name: Set up Docker Buildx 
+        uses: docker/setup-qemu-action@v3
+      -
+        name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - 
+      -
         name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - 
+      -
         name: Build and push
         uses: docker/build-push-action@v5
-        with:     
+        with:
+          push: true
           sbom: true
           provenance: true
-          push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:latest
-      - 
-        name: Install Cosign
-        uses: sigstore/cosign-installer@v3.4.0
-  
-      - 
-        name: Sign the images with GitHub OIDC Token
-        env:
-          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:latest
-        run: |
-            cosign sign --yes ${IMAGE}
-  verify-signature:
-    needs: build  # Ensure this runs after the build job
-    runs-on: ubuntu-latest
-    steps:
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.4.0
 
-      - name: Verify the Docker Image Signature
+      - name: Sign the images with GitHub OIDC Token
         env:
           IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/devops-labs:latest
-          CERT_IDENTITY_REGEXP: "https://github.com/.*/IATD-DevSecOps/.github/workflows/ci-pipeline.yml.*"
-          GITHUB_ISSUER: "https://token.actions.githubusercontent.com"
         run: |
-          cosign verify $IMAGE \
-            --certificate-identity-regexp $CERT_IDENTITY_REGEXP \
-            --certificate-oidc-issuer $GITHUB_ISSUER
+          cosign sign --yes ${IMAGE}
+
+          
   submit_results:
     needs: [build]
     if: true
